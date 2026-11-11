@@ -1006,6 +1006,41 @@ function updateJurnalSubTitle() {
     }
 }
 
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+const SESSION_EXPIRY_KEY = 'sh_session_expiry';
+let lastSessionRefresh = 0;
+
+function refreshSessionExpiry() {
+    if (!currentUser) return;
+    const now = Date.now();
+    if (now - lastSessionRefresh < 60000 && localStorage.getItem(SESSION_EXPIRY_KEY)) return;
+    lastSessionRefresh = now;
+    localStorage.setItem(SESSION_EXPIRY_KEY, String(now + SESSION_TIMEOUT_MS));
+}
+
+function isSessionExpired() {
+    const expiry = Number(localStorage.getItem(SESSION_EXPIRY_KEY)) || 0;
+    return expiry > 0 && Date.now() > expiry;
+}
+
+function clearSessionStorage() {
+    localStorage.removeItem('sh_logged_user');
+    localStorage.removeItem(SESSION_EXPIRY_KEY);
+}
+
+['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(evt => {
+    document.addEventListener(evt, refreshSessionExpiry, { passive: true });
+});
+
+setInterval(() => {
+    if (currentUser && isSessionExpired()) {
+        const wasAdmin = currentUser.role === 'admin';
+        handleLogout();
+        goToLogin();
+        alert(`Sesi ${wasAdmin ? 'admin ' : ''}Anda telah berakhir setelah 30 menit tidak aktif. Silakan login kembali.`);
+    }
+}, 15000);
+
 function loadSession() {
     const saved = localStorage.getItem('sh_logged_user');
 
@@ -1018,9 +1053,19 @@ function loadSession() {
 
         if (!currentUser || !currentUser.username) {
             currentUser = null;
-            localStorage.removeItem('sh_logged_user');
+            clearSessionStorage();
             document.getElementById('welcome-screen').classList.remove('hidden');
             updateAdminUI();
+            return;
+        }
+
+        if (isSessionExpired()) {
+            const expiredUser = currentUser.username;
+            currentUser = null;
+            clearSessionStorage();
+            handleLogout();
+            goToLogin();
+            alert(`Sesi "${expiredUser}" telah berakhir (batas 30 menit). Silakan login kembali.`);
             return;
         }
 
@@ -1035,6 +1080,8 @@ function loadSession() {
 
         updateAdminUI();
         updateJurnalSubTitle();
+        refreshSessionExpiry();
+        switchTab('pm');
     } else {
         document.getElementById('welcome-screen').classList.remove('hidden');
         updateAdminUI();
@@ -1069,20 +1116,22 @@ async function handleLogin(e) {
     if (usersDB[u] && usersDB[u].password === p) {
         currentUser = usersDB[u];
         localStorage.setItem('sh_logged_user', JSON.stringify(currentUser));
-        
+        refreshSessionExpiry();
+
         // Admin tidak perlu mengisi profil pegawai (langsung masuk dashboard)
         if (currentUser.role === 'admin') {
             document.getElementById('login-screen').classList.add('hidden');
             const userLabel = document.getElementById('logged-username-label');
             if (userLabel) userLabel.innerText = currentUser.username;
-            
+
             updateAdminUI();
             updateJurnalSubTitle();
-            
+
             showToast(`Selamat datang, Master Admin ${currentUser.username}!`);
             renderPMTable();
             renderPegawaiTable();
             renderPerkembanganTable();
+            switchTab('pm');
             return;
         }
 
@@ -1110,6 +1159,7 @@ async function handleLogin(e) {
             renderPMTable();
             renderPegawaiTable();
             renderPerkembanganTable();
+            switchTab('pm');
         }
     } else {
         alert('Username atau Password salah!');
@@ -1118,7 +1168,7 @@ async function handleLogin(e) {
 
 function handleLogout() {
     currentUser = null;
-    localStorage.removeItem('sh_logged_user');
+    clearSessionStorage();
 
     const usernameInput = document.getElementById('login-username');
     const passwordInput = document.getElementById('login-password');
@@ -1129,6 +1179,7 @@ function handleLogout() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('tab-admin-btn').classList.add('hidden');
     updateAdminUI();
+    switchTab('pm');
 }
 
 function toggleInitConditionalFields() {
@@ -1198,6 +1249,7 @@ function saveInitPegawai(e) {
         if (userLabel) userLabel.innerText = currentUser.username;
 
         switchTab('pm');
+        refreshSessionExpiry();
         addSystemLog('Pendaftaran Pegawai', `Petugas ${newPeg.nama} (${newPeg.jabatan}) mendaftarkan profil.`);
         showToast('Data pegawai berhasil didaftarkan! Selamat datang di Dashboard PM.');
     });
