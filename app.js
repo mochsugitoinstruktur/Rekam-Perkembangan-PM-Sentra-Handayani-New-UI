@@ -1383,7 +1383,7 @@ function refreshAllViews() {
 function initDefaultData() {
     dataPM = [normalizePMRecord({
         id: 'PM001', nama: 'Ananda Rizky', ibu: 'Siti Aminah', jk: 'Laki - Laki', kasus: 'ABH',
-        vokasional: 'Vokasional TIK', asrama: 'Asrama R.A Kartini', status: 'Titipan',
+        vokasional: 'Vokasional TIK', asrama: 'R.A Kartini', status: 'Titipan',
         peksos: 'Budi Santoso, S.Tr.Sos', masuk: '2024-01-15', terminasi: '2024-07-15',
         foto: '', createdByAccount: 'user1'
     })];
